@@ -292,7 +292,7 @@ class QAgent():
             y='localization_error',
             tooltip=['episode', 'localization_error']
         ).properties(title='Localization Error per Episode').interactive()
-        chart1.save('localization_error_per_episode.json')
+        chart1.save('./Out/localization_error_per_episode.json')
 
         # 에피소드별 Path Length 시각화
         chart2 = alt.Chart(pd.DataFrame({'episode': range(num_episodes), 'path_length': path_lengths})).mark_line().encode(
@@ -300,7 +300,7 @@ class QAgent():
             y='path_length',
             tooltip=['episode', 'path_length']
         ).properties(title='Path Length per Episode').interactive()
-        chart2.save('path_length_per_episode.json')
+        chart2.save('./Out/path_length_per_episode.json')
 
         # 에피소드별 Reward 시각화
         chart3 = alt.Chart(pd.DataFrame({'episode': range(num_episodes), 'reward': rewards})).mark_line().encode(
@@ -308,7 +308,7 @@ class QAgent():
             y='reward',
             tooltip=['episode', 'reward']
         ).properties(title='Reward per Episode').interactive()
-        chart3.save('reward_per_episode.json')
+        chart3.save('./Out/reward_per_episode.json')
         
         self.save_q_table()
         
