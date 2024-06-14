@@ -192,7 +192,7 @@ class GPSDeniedENV():
             return False
     
 class QAgent():
-    def __init__(self, env=GPSDeniedENV, gamma=0.999, lr=1e-3):
+    def __init__(self, env=GPSDeniedENV, gamma=0.999, lr=3e-4):
         self.env = env
         self.gamma = gamma
         self.lr = lr
@@ -314,7 +314,7 @@ class QAgent():
         
         return localization_errors, path_lengths, rewards
     
-    def save_q_table(self, filename="q_table_multilateration.json"):
+    def save_q_table(self, filename="./Out/q_table_multilateration.json"):
         """
         Q-table을 JSON 파일로 저장합니다.
         """
@@ -325,5 +325,5 @@ class QAgent():
 if __name__ == "__main__":
     env = GPSDeniedENV(900, 700, 100, 150, 2, 4, 30)
         
-    agent = QAgent(env, 0.999, 1e-4)    
-    localization_errors, path_lengths, rewards = agent.learning(num_episodes=10000)
+    agent = QAgent(env, 0.999)    
+    localization_errors, path_lengths, rewards = agent.learning(num_episodes=50000)

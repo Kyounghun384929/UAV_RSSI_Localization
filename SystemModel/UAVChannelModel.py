@@ -73,7 +73,9 @@ def channelmodel(r: int, h: int) -> float:
     sigma = P_Los**2 * sigma_los**2 + (1 - P_Los)**2 * sigma_nlos**2
     
     fspl = FSPL(r, h)
-    loss = np.random.normal(np.sqrt(sigma), np.sqrt(sigma))
+    # loss = np.random.normal(np.sqrt(sigma), np.sqrt(sigma))
+    loss = np.random.normal(0, sigma)
+
     return fspl + loss
 
 def estimate_distance(rssi_measured: float, n: float) -> float:
