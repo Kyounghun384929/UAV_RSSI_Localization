@@ -3,43 +3,43 @@ import matplotlib.pyplot as plt
 import altair as alt
 import pandas as pd
 from tqdm import tqdm
-from SystemModel.UAVChannelModel import channelmodel
-from SystemModel.Localization import multilateration
+
+from SystemModel.UAVChannelModel import *
+from SystemModel.Localization import *
+
 import os
 from datetime import datetime
-
-# 현재 시간을 포맷팅
 now = datetime.now().strftime("%Y%m%d_%H_%M")
 
-class GPSDeniedENV:
+class GPSDeniedENV():
     def __init__(self, Lx, Ly, h, D, w, n, num_objects):
         self.Lx = Lx
         self.Ly = Ly
         self.h = h
         self.D = D
         self.w = w
-        self.n = n  # 경로 감쇄 지수
+        self.n = n # 경로 감쇄 지수
         self.num_objects = num_objects
-
+        
         self.R = np.sqrt(D**2 - h**2)
         self.Cx = self.Lx / np.ceil(self.Lx / self.R)
         self.Cy = self.Ly / np.ceil(self.Ly / self.R)
-
-        self.initial_scan_points = self.init_scan_waypoints()
-        self.cell_points = self.cell_waypoints()
-        self.ground_objects = self.generate_ground_objects(self.num_objects)
-        self.initial_scan_target_count = self.init_target_count()
-
+        
+        self.initial_scan_points = self.InitScanWayPoint()
+        self.cell_points = self.CellWayPoint()
+        self.ground_objects = self.GroundObject(self.num_objects)
+        self.initial_scan_target_count = self.InitTargetCount()
+        
     def get_num_state_action(self):
-        """
+        '''
         Returns: Num_state, Num_actions
-        """
+        '''
         return len(self.cell_points), len(self.cell_points)
-
+    
     def get_state_index(self, state):
         return self.cell_points.index(state)    
-
-    def init_scan_waypoints(self):
+    
+    def InitScanWayPoint(self):
         Snodes = []
         x, y = 0, 0
         
@@ -48,11 +48,14 @@ class GPSDeniedENV:
             while y <= self.Ly:
                 Snodes.append((x, y))
                 y += 2 * self.Cy
-            y = self.Cy if temp == 0 else 0
+            if temp == 0:
+                y = self.Cy
+            else:
+                y = 0
             x += self.Cx
         return Snodes
     
-    def cell_waypoints(self):
+    def CellWayPoint(self):
         Cnodes = []
         x = self.Cx / (2 * self.w)
         y = self.Cy / (2 * self.w)
@@ -65,21 +68,22 @@ class GPSDeniedENV:
             x += self.Cx / self.w
         return Cnodes
     
-    def generate_ground_objects(self, num_objects):
+    def GroundObject(self, num_objects):
         Gobjects = []
         np.random.seed(1230)
         for i in range(num_objects):
-            Gobjects.append({
+            object = {
                 'id': i,
                 'x': round(np.random.uniform(0, self.Lx)),
                 'y': round(np.random.uniform(0, self.Ly)),
-                'vx': round(np.random.normal(0, 1.5)),
-                'vy': round(np.random.normal(0, 1.5))
-            })
+                'vx': round(np.random.normal(0, 0.1)),
+                'vy': round(np.random.normal(0, 0.1))
+            }
+            Gobjects.append(object)
         np.random.seed()
         return Gobjects
     
-    def init_target_count(self, threshold_rssi=-90):
+    def InitTargetCount(self, threshold_rssi=-90):
         data = {}
         for waypoint in self.initial_scan_points:
             waypoint_pos = np.array(waypoint)
@@ -90,7 +94,7 @@ class GPSDeniedENV:
                 
                 if r <= self.D:
                     rssi = channelmodel(r, self.h)
-                    if threshold_rssi <= rssi:
+                    if threshold_rssi <= rssi <= -80:
                         count += 1
             data[tuple(waypoint_pos)] = count
         return data
@@ -102,6 +106,8 @@ class GPSDeniedENV:
         self.visited = 0
         self.estimated_pos = []
         self.path_length = 0
+        # Ground Object Randomize
+        # self.ground_objects = self.GroundObject(self.num_objects)
         return self.state
     
     def step(self, action):
@@ -111,7 +117,10 @@ class GPSDeniedENV:
         next_state = self.cell_points[action]
 
         # 다음 위치에서 지상 물체에 대해서 RSSI 측정을 진행하고, 지상 물체 'id'에 대한 진행 횟수 저장
+        # 지상 물체의 위치가 가속도 벡터만큼 변경
         for obj in self.ground_objects:
+            obj['x'] += obj['vx']
+            obj['y'] += obj['vy']
             r = np.linalg.norm(np.array(next_state) - np.array([obj['x'], obj['y']]))
             if r <= self.D:
                 rssi = channelmodel(r, self.h)
@@ -121,6 +130,7 @@ class GPSDeniedENV:
             if len(obj) >= 8: # (기본 5개 + 위치&rssi 3개)
                 positions = [list(v[:2]) + [v[2]] for k, v in obj.items() if k.startswith('Aps_')]
                 x, y = multilateration(positions, n=self.n)
+                # x, y = trilateration(obj[list(obj.keys())[-3]], obj[list(obj.keys())[-2]], obj[list(obj.keys())[-1]], n=3)
                 
                 existing_est_pos = next((item for item in self.estimated_pos if item["id"] == obj['id']), None)
                 if existing_est_pos:
@@ -134,14 +144,15 @@ class GPSDeniedENV:
         # 현재 위치 업데이트 및 보상 계산 및 에피소드 종료 여부 확인
         self.state = next_state
         reward = self.get_reward(self.state)
-        stop = self.is_terminal_state()
+        stop = self.terminal_state()
         
         return self.state, reward, stop
         
     def calculate_localization_error(self):
-        """
-        Returns: 모든 Ground Object에 대한 평균 Localization Error
-        """
+        '''
+        Returns:
+        모든 Ground Object에 대한 평균 Localization Error
+        '''
         total_error = 0.
         estimated_count = 0.
         for obj in self.ground_objects:
@@ -155,7 +166,7 @@ class GPSDeniedENV:
             avg_error = total_error / estimated_count
             return avg_error
         else:
-            return -self.visited
+            return -(self.visited + self.path_length/100)
         
     def get_reward(self, state):
         total_error = 0
@@ -173,12 +184,17 @@ class GPSDeniedENV:
         else:
             return -100
         
-    def is_terminal_state(self):
+    def terminal_state(self):
         # 1. Cell Way Point 이동 횟수
         # 2. 최대 경로 길이
-        return self.visited == 100 or self.path_length >= 7000
+        if self.visited == 20: # 20회|40회|100회
+            return True
+        elif self.path_length >= 7000:
+            return True
+        else:
+            return False
     
-class QAgent:
+class QAgent():
     def __init__(self, env=GPSDeniedENV, gamma=0.999, lr=3e-4):
         self.env = env
         self.gamma = gamma
@@ -187,7 +203,6 @@ class QAgent:
         self.epsilon_start = 1.0
         self.epsilon_end = 1e-4
         self.epsilon_decay = 0.995
-        self.epsilon = self.epsilon_start
         
         self.num_states, self.num_actions = self.env.get_num_state_action()
         self.q_table = np.zeros([self.num_states, self.num_actions])
@@ -237,7 +252,36 @@ class QAgent:
                 
                 if stop:
                     if episode+1 == 1 or episode % 1000 == 0:
-                        self.visualize_positions(episode, trajectory)
+                        # Ground Truth와 Estimated Position 시각화
+                        plt.figure(figsize=(8, 8))
+                        for obj in self.env.ground_objects:
+                            plt.scatter(obj['x'], obj['y'], c='r', marker='o', label='Real Position' if obj['id'] == 0 else "")  # Ground Truth (빨간색)
+                        
+                        for i, est in enumerate(self.env.estimated_pos):
+                            if i == 0:
+                                plt.scatter(est['estimated pos'][0], est['estimated pos'][1], c='b', marker='x', label='Estimated Position')
+                            else:
+                                plt.scatter(est['estimated pos'][0], est['estimated pos'][1], c='b', marker='x')
+                        
+                            # Ground Truth와 Estimated Position 연결
+                            for obj in self.env.ground_objects:
+                                if obj['id'] == est['id']:
+                                    plt.plot([obj['x'], est['estimated pos'][0]], [obj['y'], est['estimated pos'][1]], c='gray', linestyle='--')
+                        
+                        # UAV Trajectory 시각화
+                        # trajectory_x = [pos[0] for pos in trajectory]
+                        # trajectory_y = [pos[1] for pos in trajectory]
+                        # plt.plot(trajectory_x, trajectory_y, c='g', linestyle='-', label='UAV Trajectory')
+                        plt.title(f'Ground Truth vs. Estimated Position (Episode {episode + 1})')
+                        plt.xlabel('X')
+                        plt.ylabel('Y')
+                        plt.legend()
+                        plt.grid(True)
+                        foldername = f"{now}_gamma_{self.gamma}_lr_{self.lr}"
+                        folderdir = os.path.join('./Results', foldername)
+                        os.makedirs(folderdir, exist_ok=True)
+                        plt.savefig(os.path.join(folderdir, f'episode_{episode+1}_plot.png'))  # 각 에피소드별로 그림 저장
+                        plt.close()  # 메모리 절약을 위해 그림 닫기
                     
                     localization_errors.append(self.env.calculate_localization_error())
                     rewards.append(total_reward)
@@ -245,38 +289,6 @@ class QAgent:
                     self.env.path_length = 0
                     break
         
-        self.visualize_results(localization_errors, path_lengths, rewards, num_episodes)
-        self.save_q_table()
-        
-        return localization_errors, path_lengths, rewards
-    
-    def visualize_positions(self, episode, trajectory):
-        plt.figure(figsize=(8, 8))
-        for obj in self.env.ground_objects:
-            plt.scatter(obj['x'], obj['y'], c='r', marker='o', label='Real Position' if obj['id'] == 0 else "")  # Ground Truth (빨간색)
-        
-        for i, est in enumerate(self.env.estimated_pos):
-            if i == 0:
-                plt.scatter(est['estimated pos'][0], est['estimated pos'][1], c='b', marker='x', label='Estimated Position')
-            else:
-                plt.scatter(est['estimated pos'][0], est['estimated pos'][1], c='b', marker='x')
-        
-            for obj in self.env.ground_objects:
-                if obj['id'] == est['id']:
-                    plt.plot([obj['x'], est['estimated pos'][0]], [obj['y'], est['estimated pos'][1]], c='gray', linestyle='--')
-        
-        plt.title(f'Ground Truth vs. Estimated Position (Episode {episode + 1})')
-        plt.xlabel('X')
-        plt.ylabel('Y')
-        plt.legend()
-        plt.grid(True)
-        foldername = f"{now}_gamma_{self.gamma}_lr_{self.lr}"
-        folderdir = os.path.join('./Results', foldername)
-        os.makedirs(folderdir, exist_ok=True)
-        plt.savefig(os.path.join(folderdir, f'episode_{episode+1}_plot.png'))  # 각 에피소드별로 그림 저장
-        plt.close()  # 메모리 절약을 위해 그림 닫기
-
-    def visualize_results(self, localization_errors, path_lengths, rewards, num_episodes):
         # 에피소드별 Localization Error 시각화
         chart1 = alt.Chart(pd.DataFrame({'episode': range(num_episodes), 'localization_error': localization_errors})).mark_line().encode(
             x='episode',
@@ -300,7 +312,11 @@ class QAgent:
             tooltip=['episode', 'reward']
         ).properties(title='Reward per Episode').interactive()
         chart3.save('./Out/reward_per_episode.json')
-
+        
+        self.save_q_table()
+        
+        return localization_errors, path_lengths, rewards
+    
     def save_q_table(self, filename="./Out/q_table_multilateration.json"):
         """
         Q-table을 JSON 파일로 저장합니다.
@@ -308,8 +324,9 @@ class QAgent:
         import json
         with open(filename, "w") as f:
             json.dump(self.q_table.tolist(), f)
-
+    
 if __name__ == "__main__":
-    env = GPSDeniedENV(900, 700, 100, 200, 2, 4, 30)
-    agent = QAgent(env, gamma=0.999)
+    env = GPSDeniedENV(900, 700, 100, 150, 2, 4, 30)
+        
+    agent = QAgent(env, 0.999)    
     localization_errors, path_lengths, rewards = agent.learning(num_episodes=50000)

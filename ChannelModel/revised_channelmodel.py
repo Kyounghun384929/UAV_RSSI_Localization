@@ -109,19 +109,19 @@ if __name__ == '__main__':
     
     d = np.linspace(0, 300, 100)
     
-    # path_loss_FSPL = -FSPL(d, 100)
-    # plt.xlabel('Distances [m]')
-    # plt.ylabel('RSSI [dBm]')
-    # sns.lineplot(x=d, y=path_loss_FSPL, label='FSPL RSSI', c='#000000')
-    # plt.show()
+    path_loss_FSPL = -FSPL(d, 100)
+    plt.xlabel('Distances [m]')
+    plt.ylabel('RSSI [dBm]')
+    sns.lineplot(x=d, y=path_loss_FSPL, label='FSPL RSSI', c='#000000')
+    plt.show()
 
-    # distance = np.linspace(0, 1000, 1000)
-    # P_LOS_Prob = [LogNormal_paper(dis, 100)[0] for dis in distance]
-    # sns.lineplot(x=distance, y=P_LOS_Prob)
-    # plt.title("Path Loss Probability versus Distances")
-    # plt.xlabel('Distances [m]')
-    # plt.ylabel('Probability')
-    # plt.show()
+    distance = np.linspace(0, 1000, 1000)
+    P_LOS_Prob = [LogNormal_paper(dis, 100)[0] for dis in distance]
+    sns.lineplot(x=distance, y=P_LOS_Prob)
+    plt.title("Path Loss Probability versus Distances")
+    plt.xlabel('Distances [m]')
+    plt.ylabel('Probability')
+    plt.show()
 
     fig, axs = plt.subplots(3, 1, figsize=(10, 10))
     

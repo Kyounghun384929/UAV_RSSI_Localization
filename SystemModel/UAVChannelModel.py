@@ -94,8 +94,8 @@ def estimate_distance(rssi_measured: float, n: float) -> float:
     d = 10 ** ((PL0-rssi_measured) / (10 * n))
     d *= d0
     
-    noise = np.random.normal(0, 0.1 * d)  # 표준편차를 거리의 10%로 설정
-    d += noise
+    # noise = np.random.normal(0, 0.1 * d)  # 표준편차를 거리의 10%로 설정
+    # d += noise
     
     return d
 
