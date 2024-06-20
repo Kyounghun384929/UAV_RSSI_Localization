@@ -88,7 +88,7 @@ class GPSDeniedENV:
                 ground_pos = np.array([g_pos['x'], g_pos['y']])
                 r = np.linalg.norm(waypoint_pos - ground_pos)
                 
-                if r <= self.D:
+                if r <= self.D / 2:
                     rssi = channelmodel(r, self.h)
                     if threshold_rssi <= rssi:
                         count += 1

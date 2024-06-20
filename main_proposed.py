@@ -237,7 +237,11 @@ class QAgent():
             trajectory = [self.env.state]
             
             while not stop:
-                action = self.get_action(state_idx)
+                # action = self.get_action(state_idx)
+                if episode <= 20000:
+                    action = np.random.choice(self.num_actions)
+                else:
+                    action = np.argmax(self.q_table[state_idx])
                 next_state, reward, stop = self.env.step(action)
                 next_state_idx = self.env.get_state_index(next_state)
                 
@@ -272,10 +276,10 @@ class QAgent():
                         # trajectory_x = [pos[0] for pos in trajectory]
                         # trajectory_y = [pos[1] for pos in trajectory]
                         # plt.plot(trajectory_x, trajectory_y, c='g', linestyle='-', label='UAV Trajectory')
-                        plt.title(f'Ground Truth vs. Estimated Position (Episode {episode + 1})')
-                        plt.xlabel('X')
-                        plt.ylabel('Y')
-                        plt.legend()
+                        plt.title(f'Ground Truth vs. Estimated Position)', fontsize=20)
+                        plt.xlabel('X-axis distance [m]', fontsize=20)
+                        plt.ylabel('Y-axis distance [m]', fontsize=20)
+                        plt.legend(fontsize=16)
                         plt.grid(True)
                         foldername = f"{now}_gamma_{self.gamma}_lr_{self.lr}"
                         folderdir = os.path.join('./Results', foldername)
@@ -330,3 +334,54 @@ if __name__ == "__main__":
         
     agent = QAgent(env, 0.999)    
     localization_errors, path_lengths, rewards = agent.learning(num_episodes=50000)
+    
+    state = env.reset()
+    state_idx = env.get_state_index(state)
+    stop = False
+    trajectory = []
+    
+    while not stop:
+            action = np.argmax(agent.q_table[state_idx])
+            next_state, reward, stop = env.step(action)
+            next_state_idx = env.get_state_index(next_state)
+            
+            q_predict = agent.q_table[state_idx, action]
+            q_target = reward + agent.gamma * np.max(agent.q_table[next_state_idx])
+            
+            agent.q_table[state_idx, action] += agent.lr * (q_target - q_predict)
+            
+            state_idx = next_state_idx
+            trajectory.append(next_state)
+            
+            if stop:
+                plt.figure(figsize=(8, 8))
+                for obj in env.ground_objects:
+                    plt.scatter(obj['x'], obj['y'], c='r', marker='o', label='Real Position' if obj['id'] == 0 else "")  # Ground Truth (빨간색)
+                
+                for i, est in enumerate(env.estimated_pos):
+                    if i == 0:
+                        plt.scatter(est['estimated pos'][0], est['estimated pos'][1], c='b', marker='x', label='Estimated Position')
+                    else:
+                        plt.scatter(est['estimated pos'][0], est['estimated pos'][1], c='b', marker='x')
+                
+                    # Ground Truth와 Estimated Position 연결
+                    for obj in env.ground_objects:
+                        if obj['id'] == est['id']:
+                            plt.plot([obj['x'], est['estimated pos'][0]], [obj['y'], est['estimated pos'][1]], c='gray', linestyle='--')
+                
+                # UAV Trajectory 시각화
+                # trajectory_x = [pos[0] for pos in trajectory]
+                # trajectory_y = [pos[1] for pos in trajectory]
+                # plt.plot(trajectory_x, trajectory_y, c='g', linestyle='-', label='UAV Trajectory')
+                plt.title(f'Ground Truth vs. Estimated Position)', fontsize=20)
+                plt.xlabel('X-axis distance [m]', fontsize=20)
+                plt.ylabel('Y-axis distance [m]', fontsize=20)
+                plt.legend(fontsize=16)
+                plt.grid(True)
+                foldername = f"{now}_gamma_{agent.gamma}_lr_{agent.lr}"
+                folderdir = os.path.join('./Results', foldername)
+                os.makedirs(folderdir, exist_ok=True)
+                plt.savefig(os.path.join(folderdir, f'episode_plot.png'))  # 각 에피소드별로 그림 저장
+                plt.close()  # 메모리 절약을 위해 그림 닫기
+            
+            localization_errors.append(env.calculate_localization_error())

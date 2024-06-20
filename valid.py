@@ -32,7 +32,8 @@ class GroundObjectTracker:
         """
         estimated_pos = []
         for obj in ground_objects:
-            error_distance = np.random.uniform(25,65)  # 20~30m 오차
+            error_distance = np.random.normal(200, 50)
+            error_distance = np.random.uniform(50,200)  # 20~30m 오차
             error_angle = np.random.uniform(0, 2 * np.pi)  # 랜덤 각도
             estimated_pos.append({
                 'id': obj['id'],
@@ -56,10 +57,10 @@ class GroundObjectTracker:
                 if obj['id'] == est['id']:
                     plt.plot([obj['x'], est['estimated pos'][0]], [obj['y'], est['estimated pos'][1]], c='gray', linestyle='--')
 
-        plt.title(f'Ground Truth vs. Estimated Position')
-        plt.xlabel('X')
-        plt.ylabel('Y')
-        plt.legend()
+        plt.title(f'Ground Truth vs. Estimated Position', fontsize=20)
+        plt.xlabel('X-axis distance [m]', fontsize=20)
+        plt.ylabel('Y-axis distance [m]', fontsize=20)
+        plt.legend(fontsize=16)
         plt.grid(True)
 
         # 저장 폴더 생성 및 파일 저장
